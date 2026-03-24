@@ -408,6 +408,19 @@
     white-space: nowrap;
   }
   .btn-save-target:active { background: #0d47a1; }
+  .btn-csv {
+    flex: 1;
+    background: #fff;
+    color: #1565c0;
+    border: 1px solid #1565c0;
+    border-radius: 6px;
+    padding: 10px 8px;
+    font-size: 14px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .btn-csv:active { background: #e3f2fd; }
+  .btn-csv-import { display: inline-flex; align-items: center; justify-content: center; }
 
   /* ===== シフトコードボタン ===== */
   .code-btns {
@@ -800,6 +813,16 @@
         <input type="number" class="form-input form-input-sm" id="targetMinInput" min="0" max="9999" value="0">
         <span style="font-size:13px;color:#888;">分</span>
         <button class="btn-save-target" id="saveTargetBtn">保存</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">CSVエクスポート / インポート（この月）</div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn-csv" id="csvExportBtn">CSVエクスポート</button>
+        <label class="btn-csv btn-csv-import" id="csvImportLabel">
+          CSVインポート
+          <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
+        </label>
       </div>
     </div>
     <div class="settings-row">
@@ -1359,6 +1382,97 @@ function resetMonth() {
   showToast('削除しました');
 }
 
+// ===== CSV エクスポート / インポート =====
+function csvExport() {
+  const ym = currentYM();
+  const [y, m] = ym.split('-').map(Number);
+  const monthData = getMonthData(appData, ym);
+  const numDays = daysInMonth(y, m - 1);
+
+  const header = '日付,シフト記号,休日,変更後タイプ,変更前開始,変更前終了,変更前休憩,変更後開始,変更後終了,変更後休憩';
+  const rows = [header];
+
+  for (let d = 1; d <= numDays; d++) {
+    const ymd = toYMD(new Date(y, m - 1, d));
+    const entry = monthData.days[ymd] || {};
+    const cols = [
+      ymd,
+      entry.symbol || '',
+      entry.isHoliday ? '1' : '0',
+      entry.afterType || 'normal',
+      entry.before?.start || '',
+      entry.before?.end || '',
+      entry.before?.break !== undefined ? entry.before.break : '',
+      entry.after?.start || '',
+      entry.after?.end || '',
+      entry.after?.break !== undefined ? entry.after.break : ''
+    ];
+    rows.push(cols.join(','));
+  }
+
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shift_${ym}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSVをエクスポートしました');
+}
+
+function csvImport(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result.replace(/^\uFEFF/, '');
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { showToast('データがありません'); return; }
+
+    // ヘッダースキップ
+    const dataLines = lines.slice(1);
+    let ym = null;
+    let imported = 0;
+
+    for (const line of dataLines) {
+      const cols = line.split(',');
+      if (cols.length < 10) continue;
+      const [ymd, symbol, isHol, afterType, bs, be, bb, as, ae, ab] = cols;
+      if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
+
+      if (!ym) ym = ymd.substring(0, 7);
+      const monthData = getMonthData(appData, ym);
+
+      // 空行（全て空）はスキップ
+      if (!symbol && isHol === '0' && !bs && !be && !as && !ae) continue;
+
+      const entry = {};
+      if (symbol) entry.symbol = symbol;
+      if (isHol === '1') entry.isHoliday = true;
+      if (afterType && afterType !== 'normal') entry.afterType = afterType;
+      if (bs || be) entry.before = { start: bs, end: be, break: parseInt(bb) || 60 };
+      if (as || ae) entry.after = { start: as, end: ae, break: parseInt(ab) || 60 };
+
+      monthData.days[ymd] = entry;
+      imported++;
+    }
+
+    if (imported > 0) {
+      saveData(appData);
+      // インポートした月に移動
+      if (ym) {
+        const [iy, im] = ym.split('-').map(Number);
+        currentDate = new Date(iy, im - 1, 1);
+      }
+      render();
+      closeSettings();
+      showToast(`${imported}日分をインポートしました`);
+    } else {
+      showToast('インポートできるデータがありませんでした');
+    }
+  };
+  reader.readAsText(file);
+}
+
 // ===== トースト =====
 let toastTimer = null;
 function showToast(msg) {
@@ -1570,6 +1684,10 @@ document.getElementById('batchOverlay').addEventListener('click', e => {
 
 document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
 document.getElementById('saveTargetBtn').addEventListener('click', saveTarget);
+document.getElementById('csvExportBtn').addEventListener('click', csvExport);
+document.getElementById('csvImportInput').addEventListener('change', function(e) {
+  if (e.target.files[0]) { csvImport(e.target.files[0]); e.target.value = ''; }
+});
 document.getElementById('resetMonthBtn').addEventListener('click', resetMonth);
 
 // ===== 起動 =====
