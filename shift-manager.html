@@ -99,29 +99,6 @@
   .summary-value.negative { color: #c0392b; }
   .summary-value.complete { color: #1565c0; }
 
-  /* プログレスバー */
-  .progress-wrap {
-    background: #e8e8e8;
-    border-radius: 4px;
-    height: 8px;
-    overflow: hidden;
-    position: relative;
-  }
-  .progress-bar {
-    height: 100%;
-    border-radius: 4px;
-    background: #1565c0;
-    transition: width 0.4s ease;
-    min-width: 0;
-  }
-  .progress-bar.over { background: #e53935; }
-  .progress-label {
-    font-size: 11px;
-    color: #888;
-    text-align: right;
-    margin-top: 4px;
-  }
-
   /* ===== シフト一覧 ===== */
   .list-container {
     padding: 12px 16px;
@@ -408,27 +385,6 @@
     align-items: center;
     gap: 8px;
   }
-  .settings-input {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 16px;
-    width: 100px;
-    text-align: center;
-    -webkit-appearance: none;
-    outline: none;
-  }
-  .settings-input:focus { border-color: #1565c0; }
-  .btn-settings-save {
-    background: #1565c0;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-size: 15px;
-    font-weight: 600;
-  }
-  .btn-settings-save:active { background: #0d47a1; }
   .btn-danger {
     margin-top: 6px;
     width: 100%;
@@ -440,6 +396,16 @@
     font-size: 14px;
   }
   .btn-danger:active { background: #fce4ec; }
+  .btn-save-target {
+    background: #1565c0;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .btn-save-target:active { background: #0d47a1; }
 
   /* ===== シフトコードボタン ===== */
   .code-btns {
@@ -474,8 +440,6 @@
     font-size: 16px;
     color: #333;
     background: #fff;
-    -webkit-appearance: none;
-    appearance: none;
     outline: none;
     text-align: center;
     flex: 1;
@@ -706,10 +670,18 @@
     </div>
   </div>
   <div class="summary-bar">
-    <div class="summary-grid" style="grid-template-columns:1fr;">
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-label">目標時間</div>
+        <div class="summary-value" id="summaryTarget">—</div>
+      </div>
       <div class="summary-item">
         <div class="summary-label">累計補填</div>
         <div class="summary-value" id="summaryTotal">—</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">残り時間</div>
+        <div class="summary-value" id="summaryRemain">—</div>
       </div>
     </div>
   </div>
@@ -819,6 +791,14 @@
     <div class="settings-title">
       <span>設定</span>
       <button class="modal-close" id="settingsCloseBtn">✕</button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">この月の目標補填時間（分）</div>
+      <div class="settings-row-content">
+        <input type="number" class="form-input form-input-sm" id="targetMinInput" min="0" max="9999" value="0">
+        <span style="font-size:13px;color:#888;">分</span>
+        <button class="btn-save-target" id="saveTargetBtn">保存</button>
+      </div>
     </div>
     <div class="settings-row">
       <div class="settings-row-label">この月のデータをリセット</div>
@@ -972,7 +952,15 @@ function calcCompMin(workMin) {
 function calcMonthTotals(monthData) {
   let total = 0, enteredDays = 0, targetAdj = 0;
   for (const d of Object.values(monthData.days)) {
-    if (d.isHoliday) continue;
+    // 休日：勤務時間0基準、変更後入力があればその分を補填として加算
+    if (d.isHoliday) {
+      const work = calcWorkMin(d.after?.start, d.after?.end, d.after?.break);
+      if (work !== null && work > 0) {
+        total += work; // 8時間基準ではなく、勤務時間そのものが補填
+      }
+      enteredDays++;
+      continue;
+    }
     const afterType = d.afterType || 'normal';
     if (afterType === '休') {
       // 休み：変更前の勤務時間分を目標に加算
@@ -1017,13 +1005,24 @@ function renderHeader() {
   document.getElementById('monthTitle').textContent = `${y}年${parseInt(m)}月`;
 
   const monthData = getMonthData(appData, ym);
-  const { total } = calcMonthTotals(monthData);
+  const { total, effectiveTarget, remain } = calcMonthTotals(monthData);
 
+  // 目標時間
+  document.getElementById('summaryTarget').textContent = minToHM(effectiveTarget);
+
+  // 累計補填
   const totalEl = document.getElementById('summaryTotal');
   totalEl.textContent = (total > 0 ? '+' : '') + minToHM(total);
   totalEl.className = 'summary-value';
   if (total > 0) totalEl.classList.add('positive');
   else if (total < 0) totalEl.classList.add('negative');
+
+  // 残り時間
+  const remainEl = document.getElementById('summaryRemain');
+  remainEl.textContent = (remain > 0 ? '' : remain === 0 ? '' : '+') + minToHM(remain);
+  remainEl.className = 'summary-value';
+  if (remain <= 0) remainEl.classList.add('complete');
+  else remainEl.classList.add('negative');
 }
 
 function renderList() {
@@ -1140,12 +1139,16 @@ function openModal(ymd) {
   const isHoliday = !!entry.isHoliday;
   document.getElementById('isHoliday').checked = isHoliday;
   document.getElementById('symbolInput').value = entry.symbol || '';
-  document.getElementById('beforeStart').value = entry.before?.start || '';
-  document.getElementById('beforeEnd').value = entry.before?.end || '';
-  document.getElementById('beforeBreak').value = entry.before?.break !== undefined ? entry.before.break : 60;
-  setAfterTime('afterStart', entry.after?.start || '');
-  setAfterTime('afterEnd', entry.after?.end || '');
-  document.getElementById('afterBreak').value = entry.after?.break !== undefined ? entry.after.break : 60;
+  const beforeStart = entry.before?.start || '';
+  const beforeEnd = entry.before?.end || '';
+  const beforeBreak = entry.before?.break !== undefined ? entry.before.break : 60;
+  document.getElementById('beforeStart').value = beforeStart;
+  document.getElementById('beforeEnd').value = beforeEnd;
+  document.getElementById('beforeBreak').value = beforeBreak;
+  // 変更後が未入力の場合は変更前の値を初期値としてセット
+  setAfterTime('afterStart', entry.after?.start || beforeStart);
+  setAfterTime('afterEnd', entry.after?.end || beforeEnd);
+  document.getElementById('afterBreak').value = entry.after?.break !== undefined ? entry.after.break : beforeBreak;
 
   // 変更後タイプ設定
   const afterType = entry.afterType || 'normal';
@@ -1162,27 +1165,55 @@ function closeModal() {
 }
 
 function toggleHolidayMode(isHoliday) {
-  const workSection = document.getElementById('workSection');
   const beforeSection = document.getElementById('beforeSection');
   const afterSection = document.getElementById('afterSection');
   const calcPreview = document.getElementById('calcPreview');
+  const afterTypeBtns = document.querySelector('.after-type-btns');
+  const afterTypeInfo = document.getElementById('afterTypeInfo');
   const sym = document.getElementById('symbolInput');
   if (isHoliday) {
     beforeSection.style.display = 'none';
-    afterSection.style.display = 'none';
-    calcPreview.style.display = 'none';
+    afterSection.style.display = '';
+    calcPreview.style.display = '';
+    // 休日時は変更後タイプボタンを隠す（通常勤務扱い）
+    afterTypeBtns.style.display = 'none';
+    afterTypeInfo.style.display = 'none';
+    document.getElementById('afterTimeInputs').style.display = '';
     if (!sym.value) sym.value = '休';
   } else {
     beforeSection.style.display = '';
     afterSection.style.display = '';
     calcPreview.style.display = '';
+    afterTypeBtns.style.display = '';
     if (sym.value === '休') sym.value = '';
   }
+  updateCalcPreview();
 }
 
 function updateCalcPreview() {
   const workEl = document.getElementById('previewWork');
   const compEl = document.getElementById('previewComp');
+
+  // 休日モード：勤務時間0基準、変更後入力があればその分が補填
+  const isHoliday = document.getElementById('isHoliday').checked;
+  if (isHoliday) {
+    const start = getAfterTime('afterStart');
+    const end = getAfterTime('afterEnd');
+    const brk = document.getElementById('afterBreak').value;
+    const work = calcWorkMin(start, end, brk);
+    if (work !== null && work > 0) {
+      workEl.textContent = minToHHMM(work);
+      workEl.className = 'calc-item-value';
+      compEl.textContent = `+${minToHM(work)}`;
+      compEl.className = 'calc-item-value positive';
+    } else {
+      workEl.textContent = '0:00';
+      workEl.className = 'calc-item-value';
+      compEl.textContent = '±0';
+      compEl.className = 'calc-item-value';
+    }
+    return;
+  }
 
   if (currentAfterType === '休') {
     const bs = document.getElementById('beforeStart').value;
@@ -1252,7 +1283,12 @@ function saveDay() {
   const symbol = document.getElementById('symbolInput').value.trim();
 
   if (isHoliday) {
-    monthData.days[editingYMD] = { isHoliday: true, symbol: symbol || '休' };
+    const entry = { isHoliday: true, symbol: symbol || '休' };
+    const as = getAfterTime('afterStart');
+    const ae = getAfterTime('afterEnd');
+    const ab = parseInt(document.getElementById('afterBreak').value) || 60;
+    if (as || ae) entry.after = { start: as, end: ae, break: ab };
+    monthData.days[editingYMD] = entry;
   } else {
     const bs = document.getElementById('beforeStart').value;
     const be = document.getElementById('beforeEnd').value;
@@ -1291,6 +1327,9 @@ function clearDay() {
 
 // ===== 設定 =====
 function openSettings() {
+  const ym = currentYM();
+  const monthData = getMonthData(appData, ym);
+  document.getElementById('targetMinInput').value = monthData.targetMinutes;
   document.getElementById('settingsOverlay').classList.add('open');
 }
 function closeSettings() {
@@ -1298,21 +1337,13 @@ function closeSettings() {
 }
 
 function saveTarget() {
-  const val = parseInt(document.getElementById('targetInput').value);
-  if (isNaN(val) || val < 0) { showToast('正しい値を入力してください'); return; }
   const ym = currentYM();
-  getMonthData(appData, ym).targetMinutes = val;
+  const monthData = getMonthData(appData, ym);
+  monthData.targetMinutes = parseInt(document.getElementById('targetMinInput').value) || 0;
   saveData(appData);
+  closeSettings();
   render();
-  showToast(`目標を ${minToHM(val)} に変更しました`);
-}
-
-function saveDefaultTarget() {
-  const val = parseInt(document.getElementById('defaultTargetInput').value);
-  if (isNaN(val) || val < 0) { showToast('正しい値を入力してください'); return; }
-  appData.settings.defaultTargetMinutes = val;
-  saveData(appData);
-  showToast(`デフォルト目標を ${minToHM(val)} に変更しました`);
+  showToast('目標時間を保存しました');
 }
 
 function resetMonth() {
@@ -1537,7 +1568,6 @@ document.getElementById('batchOverlay').addEventListener('click', e => {
 
 document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
 document.getElementById('saveTargetBtn').addEventListener('click', saveTarget);
-document.getElementById('saveDefaultTargetBtn').addEventListener('click', saveDefaultTarget);
 document.getElementById('resetMonthBtn').addEventListener('click', resetMonth);
 
 // ===== 起動 =====
