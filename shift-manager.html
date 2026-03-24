@@ -973,9 +973,9 @@ function calcMonthTotals(monthData) {
       // 有休：8時間勤務と同じ扱い（補填0）
       enteredDays++;
     } else if (afterType === '半休') {
-      // 半休：(変更前勤務時間 - 8時間)を目標に加算 + 実勤務があればそれも計算
+      // 半休：(8時間 - 変更前勤務時間)を目標に加算 + 実勤務があればそれも計算
       const beforeWork = calcWorkMin(d.before?.start, d.before?.end, d.before?.break);
-      if (beforeWork !== null) targetAdj += (beforeWork - 480);
+      if (beforeWork !== null) targetAdj += (480 - beforeWork);
       const work = calcWorkMin(d.after?.start, d.after?.end, d.after?.break);
       if (work !== null) total += calcCompMin(work);
       enteredDays++;
@@ -1070,7 +1070,7 @@ function renderList() {
           compHtml = `<span class="comp-badge zero">±0</span>`;
         } else if (afterType === '半休') {
           const beforeWork = calcWorkMin(entry.before?.start, entry.before?.end, entry.before?.break);
-          const targetAdd = beforeWork !== null ? (beforeWork - 480) : null;
+          const targetAdd = beforeWork !== null ? (480 - beforeWork) : null;
           const work = calcWorkMin(entry.after?.start, entry.after?.end, entry.after?.break);
           const comp = work !== null ? calcCompMin(work) : null;
           timeHtml = `<span class="shift-time" style="color:#e65100">半休（目標${targetAdd !== null ? (targetAdd >= 0 ? '+' : '') + minToHM(targetAdd) : '?'}）</span>`;
@@ -1240,7 +1240,7 @@ function updateCalcPreview() {
     const be = document.getElementById('beforeEnd').value;
     const bb = document.getElementById('beforeBreak').value;
     const beforeWork = calcWorkMin(bs, be, bb);
-    const targetAdd = beforeWork !== null ? (beforeWork - 480) : null;
+    const targetAdd = beforeWork !== null ? (480 - beforeWork) : null;
 
     const start = getAfterTime('afterStart');
     const end = getAfterTime('afterEnd');
@@ -1394,7 +1394,7 @@ function setAfterType(type) {
   } else if (type === '半休') {
     timeInputs.style.display = '';
     infoEl.style.display = '';
-    infoEl.textContent = '半休：（変更前勤務時間−8時間）が目標時間に加算されます。実勤務時間も入力できます。';
+    infoEl.textContent = '半休：（8時間−変更前勤務時間）が目標時間に加算されます。実勤務時間も入力できます。';
   }
   updateCalcPreview();
 }
