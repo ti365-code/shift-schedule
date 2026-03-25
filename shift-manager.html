@@ -270,6 +270,12 @@
     color: #1565c0;
     border-bottom: 1px solid #a8c8f0;
   }
+  .section-before .form-input[readonly] {
+    background: transparent;
+    border-color: transparent;
+    color: #555;
+    pointer-events: none;
+  }
   .section-divider {
     display: flex;
     align-items: center;
@@ -323,13 +329,6 @@
   }
 
   /* 休日チェック */
-  .holiday-check-wrap {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 0;
-  }
-  .holiday-check-wrap label { font-size: 15px; color: #333; cursor: pointer; }
   input[type="checkbox"] {
     width: 20px;
     height: 20px;
@@ -378,6 +377,15 @@
     font-size: 14px;
   }
   .btn-clear:active { background: #fce4ec; }
+  .btn-cancel {
+    background: #fff;
+    color: #666;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  .btn-cancel:active { background: #f5f5f5; }
 
   /* ===== 設定パネル ===== */
   .settings-overlay {
@@ -431,6 +439,63 @@
     font-size: 14px;
   }
   .btn-danger:active { background: #fce4ec; }
+  .shift-code-list {
+    margin-top: 8px;
+  }
+  .shift-code-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+  }
+  .shift-code-item-name {
+    font-weight: 700;
+    min-width: 40px;
+    color: #333;
+  }
+  .shift-code-item-detail {
+    flex: 1;
+    color: #666;
+  }
+  .shift-code-item .btn-del {
+    background: none;
+    border: none;
+    color: #c0392b;
+    font-size: 18px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .shift-code-add {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .shift-code-add input {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 7px 8px;
+    font-size: 13px;
+    outline: none;
+  }
+  .shift-code-add input:focus {
+    border-color: #1565c0;
+  }
+  .shift-code-add .inp-name { width: 50px; }
+  .shift-code-add .inp-time { width: 70px; }
+  .shift-code-add .inp-brk { width: 50px; }
+  .btn-add-code {
+    background: #1565c0;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
   .btn-save-target {
     background: #1565c0;
     color: #fff;
@@ -485,6 +550,18 @@
     touch-action: manipulation;
   }
   .code-btn:active { background: #c5cae9; }
+  .code-btn.holiday-btn {
+    background: #fce4ec;
+    color: #c62828;
+  }
+  .code-btn.holiday-btn:active { background: #f8bbd0; }
+  .code-btn.selected {
+    outline: 2px solid #333;
+    outline-offset: 1px;
+  }
+  .code-btn.holiday-btn.selected {
+    outline-color: #c62828;
+  }
 
   /* ===== 5分刻み時刻セレクト ===== */
   .time-select-wrap {
@@ -760,35 +837,24 @@
     </div>
     <div class="modal-body">
 
-      <!-- 休日チェック -->
-      <div class="holiday-check-wrap">
-        <input type="checkbox" id="isHoliday">
-        <label for="isHoliday">休日（公休・有給）</label>
-      </div>
-
-      <!-- シフト記号 -->
-      <div class="form-section" id="workSection">
-        <div class="form-section-title">シフト記号</div>
-        <div class="form-row">
-          <label class="form-label">記号</label>
-          <input type="text" class="form-input" id="symbolInput" placeholder="A, B, C, D, 845..." maxlength="10">
-        </div>
-        <div class="code-btns" id="codeBtns"></div>
-      </div>
-
-      <!-- 変更前シフト -->
+      <!-- 変更前（シフト記号 + 時間） -->
+      <input type="hidden" id="isHoliday" value="0">
+      <input type="hidden" id="symbolInput">
       <div class="form-section section-before" id="beforeSection">
         <div class="form-section-title">変更前（元のシフト）</div>
-        <div class="form-row">
-          <label class="form-label">開始</label>
-          <input type="time" class="form-input" id="beforeStart">
-          <span class="form-sep">〜</span>
-          <input type="time" class="form-input" id="beforeEnd">
-        </div>
-        <div class="form-row">
-          <label class="form-label">休憩</label>
-          <input type="number" class="form-input form-input-sm" id="beforeBreak" placeholder="60" min="0" max="480">
-          <span style="font-size:13px;color:#888;">分</span>
+        <div class="code-btns" id="codeBtns"></div>
+        <div id="beforeTimeFields" style="margin-top:10px;opacity:0.7;">
+          <div class="form-row">
+            <label class="form-label">開始</label>
+            <input type="time" class="form-input" id="beforeStart" readonly tabindex="-1">
+            <span class="form-sep">〜</span>
+            <input type="time" class="form-input" id="beforeEnd" readonly tabindex="-1">
+          </div>
+          <div class="form-row">
+            <label class="form-label">休憩</label>
+            <input type="number" class="form-input form-input-sm" id="beforeBreak" readonly tabindex="-1">
+            <span style="font-size:13px;color:#888;">分</span>
+          </div>
         </div>
       </div>
 
@@ -822,7 +888,7 @@
         </div>
         <div class="form-row">
           <label class="form-label">休憩</label>
-          <input type="number" class="form-input form-input-sm" id="afterBreak" placeholder="60" min="0" max="480">
+          <select class="time-select" id="afterBreak" style="flex:none;width:80px;"></select>
           <span style="font-size:13px;color:#888;">分</span>
         </div>
         </div>
@@ -843,6 +909,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-clear" id="clearDayBtn">クリア</button>
+      <button class="btn-cancel" id="cancelDayBtn">キャンセル</button>
       <button class="btn-save" id="saveDayBtn">保存</button>
     </div>
   </div>
@@ -878,6 +945,19 @@
       <button class="btn-send" id="csvSendBtn">スプレッドシートへ送信</button>
     </div>
     <div class="settings-row">
+      <div class="settings-row-label">シフト記号の管理</div>
+      <div class="shift-code-list" id="shiftCodeList"></div>
+      <div class="shift-code-add">
+        <input type="text" class="inp-name" id="newCodeName" placeholder="記号" maxlength="5">
+        <input type="time" class="inp-time" id="newCodeStart" value="09:00">
+        <span style="font-size:13px;">〜</span>
+        <input type="time" class="inp-time" id="newCodeEnd" value="18:00">
+        <input type="number" class="inp-brk" id="newCodeBreak" value="60" min="0" max="480" placeholder="休憩">
+        <span style="font-size:12px;color:#888;">分</span>
+        <button class="btn-add-code" id="addCodeBtn">追加</button>
+      </div>
+    </div>
+    <div class="settings-row">
       <div class="settings-row-label">この月のデータをリセット</div>
       <button class="btn-danger" id="resetMonthBtn">この月のシフトデータをすべて削除</button>
     </div>
@@ -903,14 +983,37 @@
 
 <script>
 // ===== シフトコード定義（shift.xlsx の "shift codes" シートより） =====
-const SHIFT_CODES = {
+const DEFAULT_SHIFT_CODES = {
   'A':   { start:'08:20', end:'17:20', break:60 },
   'B':   { start:'09:00', end:'18:00', break:60 },
   'C':   { start:'09:30', end:'18:30', break:60 },
   '水C': { start:'09:20', end:'18:20', break:60 },
   'D':   { start:'10:00', end:'19:00', break:60 },
   '845': { start:'08:45', end:'17:45', break:60 },
+  '945': { start:'09:45', end:'18:45', break:60 },
 };
+
+const SHIFT_CODES_KEY = 'shiftManager_codes';
+
+function loadShiftCodes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHIFT_CODES_KEY));
+    if (saved) {
+      // デフォルトに新しく追加された記号を補完
+      for (const [k, v] of Object.entries(DEFAULT_SHIFT_CODES)) {
+        if (!(k in saved)) saved[k] = v;
+      }
+      return saved;
+    }
+    return { ...DEFAULT_SHIFT_CODES };
+  } catch { return { ...DEFAULT_SHIFT_CODES }; }
+}
+
+function saveShiftCodes(codes) {
+  localStorage.setItem(SHIFT_CODES_KEY, JSON.stringify(codes));
+}
+
+let SHIFT_CODES = loadShiftCodes();
 
 // ===== 時刻セレクト初期化 =====
 function initTimeSelects() {
@@ -918,24 +1021,32 @@ function initTimeSelects() {
   const mins5 = ['00','05','10','15','20','25','30','35','40','45','50','55'];
   ['afterStartH','afterEndH'].forEach(id => {
     const sel = document.getElementById(id);
-    sel.innerHTML = hours.map(h => `<option value="${String(h).padStart(2,'0')}">${h}</option>`).join('');
+    sel.innerHTML = '<option value="--">--</option>' + hours.map(h => `<option value="${String(h).padStart(2,'0')}">${h}</option>`).join('');
   });
   ['afterStartM','afterEndM'].forEach(id => {
     const sel = document.getElementById(id);
-    sel.innerHTML = mins5.map(m => `<option value="${m}">${m}</option>`).join('');
+    sel.innerHTML = '<option value="--">--</option>' + mins5.map(m => `<option value="${m}">${m}</option>`).join('');
   });
+  // 休憩時間セレクト（0〜120分、5分刻み、初期値60）
+  const breakSel = document.getElementById('afterBreak');
+  const breakOpts = [];
+  for (let i = 0; i <= 120; i += 5) {
+    breakOpts.push(`<option value="${i}"${i === 60 ? ' selected' : ''}>${i}</option>`);
+  }
+  breakSel.innerHTML = breakOpts.join('');
 }
 
 function getAfterTime(prefix) {
   const h = document.getElementById(prefix + 'H').value;
   const m = document.getElementById(prefix + 'M').value;
+  if (h === '--' || m === '--') return '';
   return `${h}:${m}`;
 }
 
 function setAfterTime(prefix, timeStr) {
   const hEl = document.getElementById(prefix + 'H');
   const mEl = document.getElementById(prefix + 'M');
-  if (!timeStr) { hEl.value = '06'; mEl.value = '00'; return; }
+  if (!timeStr) { hEl.value = '--'; mEl.value = '--'; return; }
   const [h, rawM] = timeStr.split(':');
   hEl.value = h;
   const mRounded = Math.round(parseInt(rawM) / 5) * 5;
@@ -993,6 +1104,7 @@ function daysInMonth(year, month) {
 function timeToMin(t) {
   if (!t) return null;
   const [h, m] = t.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return null;
   return h * 60 + m;
 }
 function minToHM(min) {
@@ -1127,8 +1239,14 @@ function renderList() {
       if (entry.isHoliday) {
         rowClass += ' holiday';
         symbolHtml = `<div class="shift-symbol holiday-symbol">${entry.symbol || '休'}</div>`;
-        timeHtml = `<span class="shift-time">休日</span>`;
-        compHtml = `<span class="comp-badge zero">—</span>`;
+        const work = calcWorkMin(entry.after?.start, entry.after?.end, entry.after?.break);
+        if (work !== null && work > 0) {
+          timeHtml = `<span class="shift-time">${entry.after.start}〜${entry.after.end}</span>`;
+          compHtml = `<span class="comp-badge pos">+${minToHM(work)}</span>`;
+        } else {
+          timeHtml = `<span class="shift-time" style="color:#999">変更なし</span>`;
+          compHtml = `<span class="comp-badge zero">±0</span>`;
+        }
       } else {
         const sym = entry.symbol || '?';
         const afterType = entry.afterType || 'normal';
@@ -1138,7 +1256,7 @@ function renderList() {
           const beforeWork = calcWorkMin(entry.before?.start, entry.before?.end, entry.before?.break);
           timeHtml = `<span class="shift-time" style="color:#c62828">休（目標+${beforeWork !== null ? minToHM(beforeWork) : '?'}）</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
-          compHtml = `<span class="comp-badge neg">休</span>`;
+          compHtml = `<span class="comp-badge neg">目標+${beforeWork !== null ? minToHM(beforeWork) : '8:00'}</span>`;
         } else if (afterType === '有休') {
           timeHtml = `<span class="shift-time" style="color:#2e7d32">有休（8h相当）</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
@@ -1151,22 +1269,38 @@ function renderList() {
           timeHtml = `<span class="shift-time" style="color:#e65100">半休（目標${targetAdd !== null ? (targetAdd >= 0 ? '+' : '') + minToHM(targetAdd) : '?'}）</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
           if (comp !== null) {
-            const sign = comp > 0 ? '+' : '';
-            const cls = comp > 0 ? 'pos' : comp < 0 ? 'neg' : 'zero';
-            compHtml = `<span class="comp-badge ${cls}">${sign}${minToHM(comp)}</span>`;
+            if (comp < 0) {
+              compHtml = `<span class="comp-badge neg">目標+${minToHM(Math.abs(comp))}</span>`;
+            } else {
+              const sign = comp > 0 ? '+' : '';
+              const cls = comp > 0 ? 'pos' : 'zero';
+              compHtml = `<span class="comp-badge ${cls}">${sign}${minToHM(comp)}</span>`;
+            }
           } else {
             compHtml = `<span class="comp-badge none">半休</span>`;
           }
         } else {
           const work = calcWorkMin(entry.after?.start, entry.after?.end, entry.after?.break);
           const comp = calcCompMin(work);
-          if (work !== null) {
+          // シフト記号と変更後が一致しているか判定
+          const sc = entry.symbol ? SHIFT_CODES[entry.symbol] : null;
+          const afterMatch = sc && entry.after &&
+            entry.after.start === sc.start && entry.after.end === sc.end && entry.after.break === sc.break;
+          if (!entry.after || afterMatch) {
+            // 変更後未入力 or シフト記号と同じ → 変更なし
+            timeHtml = `<span class="shift-time" style="color:#999">変更なし</span>`;
+            compHtml = `<span class="comp-badge zero">±0</span>`;
+          } else if (work !== null) {
             const as = entry.after.start, ae = entry.after.end;
             timeHtml = `<span class="shift-time">${as}〜${ae}</span>`;
             subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
-            const sign = comp > 0 ? '+' : '';
-            const cls = comp > 0 ? 'pos' : comp < 0 ? 'neg' : 'zero';
-            compHtml = `<span class="comp-badge ${cls}">${sign}${minToHM(comp)}</span>`;
+            if (comp < 0) {
+              compHtml = `<span class="comp-badge neg">目標+${minToHM(Math.abs(comp))}</span>`;
+            } else {
+              const sign = comp > 0 ? '+' : '';
+              const cls = comp > 0 ? 'pos' : 'zero';
+              compHtml = `<span class="comp-badge ${cls}">${sign}${minToHM(comp)}</span>`;
+            }
           } else {
             timeHtml = `<span class="shift-time" style="color:#bbb">未入力</span>`;
             compHtml = `<span class="comp-badge none">—</span>`;
@@ -1214,11 +1348,11 @@ function openModal(ymd) {
   document.getElementById('modalTitle').textContent = `${parseInt(m)}月${parseInt(d)}日（${WEEKDAYS[dow]}）`;
 
   const isHoliday = !!entry.isHoliday;
-  document.getElementById('isHoliday').checked = isHoliday;
+  document.getElementById('isHoliday').value = isHoliday ? '1' : '0';
   document.getElementById('symbolInput').value = entry.symbol || '';
   const beforeStart = entry.before?.start || '';
   const beforeEnd = entry.before?.end || '';
-  const beforeBreak = entry.before?.break !== undefined ? entry.before.break : 60;
+  const beforeBreak = entry.before?.break !== undefined ? entry.before.break : '';
   document.getElementById('beforeStart').value = beforeStart;
   document.getElementById('beforeEnd').value = beforeEnd;
   document.getElementById('beforeBreak').value = beforeBreak;
@@ -1231,7 +1365,16 @@ function openModal(ymd) {
   const afterType = entry.afterType || 'normal';
   setAfterType(afterType);
 
-  toggleHolidayMode(isHoliday);
+  toggleHolidayMode(isHoliday, !!entry.after);
+
+  // ボタンのハイライト
+  if (isHoliday) {
+    highlightCodeBtn('休日');
+  } else if (entry.symbol && SHIFT_CODES[entry.symbol]) {
+    highlightCodeBtn(entry.symbol);
+  } else {
+    highlightCodeBtn(null);
+  }
   updateCalcPreview();
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -1241,15 +1384,25 @@ function closeModal() {
   editingYMD = null;
 }
 
-function toggleHolidayMode(isHoliday) {
+function toggleHolidayMode(isHoliday, skipAfterClear) {
   const beforeSection = document.getElementById('beforeSection');
   const afterSection = document.getElementById('afterSection');
   const calcPreview = document.getElementById('calcPreview');
   const afterTypeBtns = document.querySelector('.after-type-btns');
   const afterTypeInfo = document.getElementById('afterTypeInfo');
   const sym = document.getElementById('symbolInput');
+  const beforeTimeFields = document.getElementById('beforeTimeFields');
   if (isHoliday) {
-    beforeSection.style.display = 'none';
+    // 変更前の時間をクリア
+    document.getElementById('beforeStart').value = '';
+    document.getElementById('beforeEnd').value = '';
+    document.getElementById('beforeBreak').value = '';
+    // 変更後の時間もクリア（保存済みデータがなければ）
+    if (!skipAfterClear) {
+      setAfterTime('afterStart', '');
+      setAfterTime('afterEnd', '');
+      document.getElementById('afterBreak').value = 60;
+    }
     afterSection.style.display = '';
     calcPreview.style.display = '';
     // 休日時は変更後タイプボタンを隠す（通常勤務扱い）
@@ -1258,7 +1411,6 @@ function toggleHolidayMode(isHoliday) {
     document.getElementById('afterTimeInputs').style.display = '';
     if (!sym.value) sym.value = '休';
   } else {
-    beforeSection.style.display = '';
     afterSection.style.display = '';
     calcPreview.style.display = '';
     afterTypeBtns.style.display = '';
@@ -1272,7 +1424,7 @@ function updateCalcPreview() {
   const compEl = document.getElementById('previewComp');
 
   // 休日モード：勤務時間0基準、変更後入力があればその分が補填
-  const isHoliday = document.getElementById('isHoliday').checked;
+  const isHoliday = document.getElementById('isHoliday').value === '1';
   if (isHoliday) {
     const start = getAfterTime('afterStart');
     const end = getAfterTime('afterEnd');
@@ -1356,20 +1508,34 @@ function saveDay() {
   if (!editingYMD) return;
   const ym = currentYM();
   const monthData = getMonthData(appData, ym);
-  const isHoliday = document.getElementById('isHoliday').checked;
+  const isHoliday = document.getElementById('isHoliday').value === '1';
   const symbol = document.getElementById('symbolInput').value.trim();
+
+  // シフト記号も変更後時間も空 → データ削除（クリア確定）
+  const as0 = getAfterTime('afterStart');
+  const ae0 = getAfterTime('afterEnd');
+  if (!isHoliday && !symbol && !as0 && !ae0) {
+    delete monthData.days[editingYMD];
+    saveData(appData);
+    closeModal();
+    render();
+    showToast('クリアしました');
+    return;
+  }
 
   if (isHoliday) {
     const entry = { isHoliday: true, symbol: symbol || '休' };
     const as = getAfterTime('afterStart');
     const ae = getAfterTime('afterEnd');
-    const ab = parseInt(document.getElementById('afterBreak').value) || 60;
+    const abVal = parseInt(document.getElementById('afterBreak').value);
+    const ab = isNaN(abVal) ? 60 : abVal;
     if (as || ae) entry.after = { start: as, end: ae, break: ab };
     monthData.days[editingYMD] = entry;
   } else {
     const bs = document.getElementById('beforeStart').value;
     const be = document.getElementById('beforeEnd').value;
-    const bb = parseInt(document.getElementById('beforeBreak').value) || 60;
+    const bbVal = parseInt(document.getElementById('beforeBreak').value);
+    const bb = isNaN(bbVal) ? 60 : bbVal;
     const afterType = currentAfterType;
 
     const entry = { symbol };
@@ -1379,7 +1545,8 @@ function saveDay() {
     if (afterType === 'normal' || afterType === '半休') {
       const as = getAfterTime('afterStart');
       const ae = getAfterTime('afterEnd');
-      const ab = parseInt(document.getElementById('afterBreak').value) || 60;
+      const abVal2 = parseInt(document.getElementById('afterBreak').value);
+      const ab = isNaN(abVal2) ? 60 : abVal2;
       if (as || ae) entry.after = { start: as, end: ae, break: ab };
     }
     monthData.days[editingYMD] = entry;
@@ -1393,13 +1560,20 @@ function saveDay() {
 
 function clearDay() {
   if (!editingYMD) return;
-  const ym = currentYM();
-  const monthData = getMonthData(appData, ym);
-  delete monthData.days[editingYMD];
-  saveData(appData);
-  closeModal();
-  render();
-  showToast('クリアしました');
+  // フォームをリセットするだけ（データは保存時に削除）
+  document.getElementById('isHoliday').value = '0';
+  document.getElementById('symbolInput').value = '';
+  document.getElementById('beforeStart').value = '';
+  document.getElementById('beforeEnd').value = '';
+  document.getElementById('beforeBreak').value = '';
+  setAfterTime('afterStart', '');
+  setAfterTime('afterEnd', '');
+  document.getElementById('afterBreak').value = 60;
+  highlightCodeBtn(null);
+  toggleHolidayMode(false);
+  setAfterType('normal');
+  updateCalcPreview();
+  showToast('クリアしました（保存で確定）');
 }
 
 // ===== 設定 =====
@@ -1407,6 +1581,7 @@ function openSettings() {
   const ym = currentYM();
   const monthData = getMonthData(appData, ym);
   document.getElementById('targetMinInput').value = monthData.targetMinutes;
+  renderShiftCodeList();
   document.getElementById('settingsOverlay').classList.add('open');
 }
 function closeSettings() {
@@ -1748,20 +1923,102 @@ document.getElementById('settingsBtn').addEventListener('click', openSettings);
 document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
 document.getElementById('saveDayBtn').addEventListener('click', saveDay);
 document.getElementById('clearDayBtn').addEventListener('click', clearDay);
-document.getElementById('isHoliday').addEventListener('change', e => toggleHolidayMode(e.target.checked));
+document.getElementById('cancelDayBtn').addEventListener('click', closeModal);
 ['afterStartH','afterStartM','afterEndH','afterEndM','afterBreak'].forEach(id => {
   document.getElementById(id).addEventListener('change', updateCalcPreview);
 });
 
-// シフトコードボタンを生成
-const codeBtns = document.getElementById('codeBtns');
-Object.keys(SHIFT_CODES).forEach(code => {
-  const btn = document.createElement('button');
-  btn.className = 'code-btn';
-  btn.textContent = code;
-  btn.type = 'button';
-  btn.addEventListener('click', () => applyShiftCode(code));
-  codeBtns.appendChild(btn);
+// シフトコードボタンを生成（動的）
+function renderCodeBtns(selectedCode) {
+  const codeBtns = document.getElementById('codeBtns');
+  codeBtns.innerHTML = '';
+  Object.keys(SHIFT_CODES).forEach(code => {
+    const btn = document.createElement('button');
+    btn.className = 'code-btn';
+    if (selectedCode === code) btn.classList.add('selected');
+    btn.textContent = code;
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      applyShiftCode(code);
+      // 休日モード解除
+      document.getElementById('isHoliday').value = '0';
+      toggleHolidayMode(false);
+      highlightCodeBtn(code);
+    });
+    codeBtns.appendChild(btn);
+  });
+  // 「休」ボタンを追加
+  const holidayBtn = document.createElement('button');
+  holidayBtn.className = 'code-btn holiday-btn';
+  if (selectedCode === '休日') holidayBtn.classList.add('selected');
+  holidayBtn.textContent = '休';
+  holidayBtn.type = 'button';
+  holidayBtn.addEventListener('click', () => {
+    const isHol = document.getElementById('isHoliday');
+    const nowHoliday = isHol.value === '1';
+    if (nowHoliday) {
+      // トグルOFF
+      isHol.value = '0';
+      toggleHolidayMode(false);
+      highlightCodeBtn(null);
+    } else {
+      isHol.value = '1';
+      document.getElementById('symbolInput').value = '休';
+      toggleHolidayMode(true);
+      highlightCodeBtn('休日');
+    }
+  });
+  codeBtns.appendChild(holidayBtn);
+}
+
+function highlightCodeBtn(selectedCode) {
+  document.querySelectorAll('#codeBtns .code-btn').forEach(btn => btn.classList.remove('selected'));
+  if (!selectedCode) return;
+  const btns = document.querySelectorAll('#codeBtns .code-btn');
+  btns.forEach(btn => {
+    if (selectedCode === '休日' && btn.classList.contains('holiday-btn')) btn.classList.add('selected');
+    else if (btn.textContent === selectedCode && !btn.classList.contains('holiday-btn')) btn.classList.add('selected');
+  });
+}
+
+renderCodeBtns();
+
+// 設定画面のシフト記号一覧を描画
+function renderShiftCodeList() {
+  const list = document.getElementById('shiftCodeList');
+  list.innerHTML = '';
+  Object.entries(SHIFT_CODES).forEach(([code, sc]) => {
+    const item = document.createElement('div');
+    item.className = 'shift-code-item';
+    item.innerHTML = `
+      <span class="shift-code-item-name">${code}</span>
+      <span class="shift-code-item-detail">${sc.start}〜${sc.end}（休憩${sc.break}分）</span>
+      <button class="btn-del" data-code="${code}">×</button>
+    `;
+    item.querySelector('.btn-del').addEventListener('click', () => {
+      delete SHIFT_CODES[code];
+      saveShiftCodes(SHIFT_CODES);
+      renderShiftCodeList();
+      renderCodeBtns();
+    });
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('addCodeBtn').addEventListener('click', () => {
+  const name = document.getElementById('newCodeName').value.trim();
+  const start = document.getElementById('newCodeStart').value;
+  const end = document.getElementById('newCodeEnd').value;
+  const brkVal = parseInt(document.getElementById('newCodeBreak').value);
+  const brk = isNaN(brkVal) ? 60 : brkVal;
+  if (!name) { showToast('記号を入力してください'); return; }
+  if (!start || !end) { showToast('開始・終了時間を入力してください'); return; }
+  SHIFT_CODES[name] = { start, end, break: brk };
+  saveShiftCodes(SHIFT_CODES);
+  renderShiftCodeList();
+  renderCodeBtns();
+  document.getElementById('newCodeName').value = '';
+  showToast(`「${name}」を追加しました`);
 });
 
 // 変更後タイプボタン
