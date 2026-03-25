@@ -422,6 +422,18 @@
   }
   .btn-csv:active { background: #e3f2fd; }
   .btn-csv-import { display: inline-flex; align-items: center; justify-content: center; }
+  .btn-send {
+    margin-top: 6px;
+    width: 100%;
+    background: #2e7d32;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+  }
+  .btn-send:active { background: #1b5e20; }
+  .btn-send:disabled { background: #aaa; }
 
   /* ===== シフトコードボタン ===== */
   .code-btns {
@@ -825,6 +837,10 @@
           <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
         </label>
       </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">スプレッドシートに送信（この月）</div>
+      <button class="btn-send" id="csvSendBtn">スプレッドシートへ送信</button>
     </div>
     <div class="settings-row">
       <div class="settings-row-label">この月のデータをリセット</div>
@@ -1422,6 +1438,57 @@ function csvExport() {
   showToast('CSVをエクスポートしました');
 }
 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxQpoyiVX8J3EhHgHSKme7nCoaiIItLfUOGLmnnK9EcybHNIM7t0cYMYsxQkabYu58/exec';
+
+function csvSend() {
+  if (!confirm('スプレッドシートへ送信しますか？')) return;
+  const ym = currentYM();
+  const [y, m] = ym.split('-').map(Number);
+  const monthData = getMonthData(appData, ym);
+  const numDays = daysInMonth(y, m - 1);
+
+  const rows = [];
+  // ヘッダー行
+  rows.push(['日付', 'シフト記号', '休日', '変更後タイプ', '変更前開始', '変更前終了', '変更前休憩', '変更後開始', '変更後終了', '変更後休憩']);
+  for (let d = 1; d <= numDays; d++) {
+    const ymd = toYMD(new Date(y, m - 1, d));
+    const entry = monthData.days[ymd] || {};
+    rows.push([
+      ymd,
+      entry.symbol || '',
+      entry.isHoliday ? 1 : 0,
+      entry.afterType || 'normal',
+      entry.before?.start || '',
+      entry.before?.end || '',
+      entry.before?.break !== undefined ? entry.before.break : '',
+      entry.after?.start || '',
+      entry.after?.end || '',
+      entry.after?.break !== undefined ? entry.after.break : ''
+    ]);
+  }
+
+  const btn = document.getElementById('csvSendBtn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(rows)
+  })
+  .then(() => {
+    showToast('スプレッドシートへ送信しました');
+  })
+  .catch(err => {
+    showToast('送信に失敗しました: ' + err.message);
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = 'スプレッドシートへ送信';
+  });
+}
+
 function csvImport(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -1686,6 +1753,7 @@ document.getElementById('batchOverlay').addEventListener('click', e => {
 document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
 document.getElementById('saveTargetBtn').addEventListener('click', saveTarget);
 document.getElementById('csvExportBtn').addEventListener('click', csvExport);
+document.getElementById('csvSendBtn').addEventListener('click', csvSend);
 document.getElementById('csvImportInput').addEventListener('change', function(e) {
   if (e.target.files[0]) { csvImport(e.target.files[0]); e.target.value = ''; }
 });
