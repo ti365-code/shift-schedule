@@ -99,8 +99,9 @@
     color: #333;
   }
   .summary-value.positive { color: #1a7f3c; }
-  .summary-value.negative { color: #c0392b; }
-  .summary-value.complete { color: #1565c0; }
+  .summary-value.target-up { color: #c0392b; }
+  .summary-value.remain { color: #c0392b; }
+  .summary-value.remain-zero { color: #999; }
 
   /* ===== シフト一覧 ===== */
   .list-container {
@@ -349,6 +350,7 @@
   .calc-item { text-align: center; }
   .calc-item-label { font-size: 11px; color: #888; margin-bottom: 2px; }
   .calc-item-value { font-size: 15px; font-weight: 700; color: #1565c0; }
+  .calc-item-value.pos { color: #1a7f3c; }
   .calc-item-value.neg { color: #c0392b; }
 
   /* 保存ボタン */
@@ -848,6 +850,7 @@
             <label class="form-label">開始</label>
             <input type="time" class="form-input" id="beforeStart" readonly tabindex="-1">
             <span class="form-sep">〜</span>
+            <label class="form-label">終了</label>
             <input type="time" class="form-input" id="beforeEnd" readonly tabindex="-1">
           </div>
           <div class="form-row">
@@ -880,6 +883,7 @@
             <select class="time-select" id="afterStartM"></select>
           </div>
           <span class="form-sep">〜</span>
+          <label class="form-label">終了</label>
           <div class="time-select-wrap">
             <select class="time-select" id="afterEndH"></select>
             <span class="time-colon">:</span>
@@ -1164,13 +1168,25 @@ function calcMonthTotals(monthData) {
       const beforeWork = calcWorkMin(d.before?.start, d.before?.end, d.before?.break);
       if (beforeWork !== null) targetAdj += (480 - beforeWork);
       const work = calcWorkMin(d.after?.start, d.after?.end, d.after?.break);
-      if (work !== null) total += calcCompMin(work);
+      if (work !== null) {
+        const comp = calcCompMin(work);
+        if (comp >= 0) {
+          total += comp;
+        } else {
+          targetAdj += Math.abs(comp);
+        }
+      }
       enteredDays++;
     } else {
       // 通常勤務
       const work = calcWorkMin(d.after?.start, d.after?.end, d.after?.break);
       if (work !== null) {
-        total += calcCompMin(work);
+        const comp = calcCompMin(work);
+        if (comp >= 0) {
+          total += comp;
+        } else {
+          targetAdj += Math.abs(comp);
+        }
         enteredDays++;
       }
     }
@@ -1194,24 +1210,26 @@ function renderHeader() {
   document.getElementById('monthTitle').textContent = `${y}年${parseInt(m)}月`;
 
   const monthData = getMonthData(appData, ym);
-  const { total, effectiveTarget, remain } = calcMonthTotals(monthData);
+  const { total, effectiveTarget, remain, targetAdj } = calcMonthTotals(monthData);
 
-  // 目標時間
-  document.getElementById('summaryTarget').textContent = minToHM(effectiveTarget);
+  // 目標時間（加算がある場合は赤）
+  const targetEl = document.getElementById('summaryTarget');
+  targetEl.textContent = minToHM(effectiveTarget);
+  targetEl.className = 'summary-value';
+  if (targetAdj > 0) targetEl.classList.add('target-up');
 
-  // 累計補填
+  // 累計補填（緑）
   const totalEl = document.getElementById('summaryTotal');
   totalEl.textContent = (total > 0 ? '+' : '') + minToHM(total);
   totalEl.className = 'summary-value';
   if (total > 0) totalEl.classList.add('positive');
-  else if (total < 0) totalEl.classList.add('negative');
 
-  // 残り時間
+  // 残り時間（青、達成時は緑）
   const remainEl = document.getElementById('summaryRemain');
-  remainEl.textContent = (remain > 0 ? '' : remain === 0 ? '' : '+') + minToHM(remain);
+  remainEl.textContent = minToHM(remain);
   remainEl.className = 'summary-value';
-  if (remain <= 0) remainEl.classList.add('complete');
-  else remainEl.classList.add('negative');
+  if (remain <= 0) remainEl.classList.add('remain-zero');
+  else remainEl.classList.add('remain');
 }
 
 function renderList() {
@@ -1254,11 +1272,11 @@ function renderList() {
 
         if (afterType === '休') {
           const beforeWork = calcWorkMin(entry.before?.start, entry.before?.end, entry.before?.break);
-          timeHtml = `<span class="shift-time" style="color:#c62828">休（目標+${beforeWork !== null ? minToHM(beforeWork) : '?'}）</span>`;
+          timeHtml = `<span class="shift-time" style="color:#c62828">休</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
           compHtml = `<span class="comp-badge neg">目標+${beforeWork !== null ? minToHM(beforeWork) : '8:00'}</span>`;
         } else if (afterType === '有休') {
-          timeHtml = `<span class="shift-time" style="color:#2e7d32">有休（8h相当）</span>`;
+          timeHtml = `<span class="shift-time" style="color:#2e7d32">有休</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
           compHtml = `<span class="comp-badge zero">±0</span>`;
         } else if (afterType === '半休') {
@@ -1266,7 +1284,7 @@ function renderList() {
           const targetAdd = beforeWork !== null ? (480 - beforeWork) : null;
           const work = calcWorkMin(entry.after?.start, entry.after?.end, entry.after?.break);
           const comp = work !== null ? calcCompMin(work) : null;
-          timeHtml = `<span class="shift-time" style="color:#e65100">半休（目標${targetAdd !== null ? (targetAdd >= 0 ? '+' : '') + minToHM(targetAdd) : '?'}）</span>`;
+          timeHtml = `<span class="shift-time" style="color:#e65100">半休</span>`;
           subHtml = `<div class="shift-sub">変更前: ${entry.before?.start || '?'}〜${entry.before?.end || '?'}</div>`;
           if (comp !== null) {
             if (comp < 0) {
@@ -1434,7 +1452,7 @@ function updateCalcPreview() {
       workEl.textContent = minToHHMM(work);
       workEl.className = 'calc-item-value';
       compEl.textContent = `+${minToHM(work)}`;
-      compEl.className = 'calc-item-value positive';
+      compEl.className = 'calc-item-value pos';
     } else {
       workEl.textContent = '0:00';
       workEl.className = 'calc-item-value';
@@ -1480,7 +1498,7 @@ function updateCalcPreview() {
     let compText = targetAdd !== null ? `目標${targetAdd >= 0 ? '+' : ''}${minToHM(targetAdd)}` : '';
     if (comp !== null) compText += ` / 補填${comp >= 0 ? '+' : ''}${minToHM(comp)}`;
     compEl.textContent = compText || '—';
-    compEl.className = 'calc-item-value' + (comp !== null && comp < 0 ? ' neg' : '');
+    compEl.className = 'calc-item-value' + (comp !== null && comp < 0 ? ' neg' : comp !== null && comp > 0 ? ' pos' : '');
     return;
   }
 
@@ -1496,7 +1514,7 @@ function updateCalcPreview() {
     workEl.className = 'calc-item-value';
     const sign = comp > 0 ? '+' : '';
     compEl.textContent = `${sign}${minToHM(comp)}`;
-    compEl.className = 'calc-item-value' + (comp < 0 ? ' neg' : '');
+    compEl.className = 'calc-item-value' + (comp < 0 ? ' neg' : comp > 0 ? ' pos' : '');
   } else {
     workEl.textContent = '—';
     compEl.textContent = '—';
