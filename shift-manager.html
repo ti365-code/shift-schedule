@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="所定管理">
+<meta name="theme-color" content="#ffffff">
 <title>所定管理</title>
 <link rel="apple-touch-icon" href="HTMLicon.png">
 <link rel="icon" type="image/png" href="HTMLicon.png">
@@ -416,6 +417,15 @@
     justify-content: space-between;
     align-items: center;
   }
+  .settings-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    padding: 18px 0 6px;
+    border-bottom: 2px solid #e0e0e0;
+    margin-top: 4px;
+  }
+  .settings-section-title:first-child { margin-top: 0; padding-top: 0; }
   .settings-row {
     padding: 14px 0;
     border-bottom: 1px solid #f5f5f5;
@@ -498,16 +508,6 @@
     font-size: 13px;
     white-space: nowrap;
   }
-  .btn-save-target {
-    background: #1565c0;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 14px;
-    white-space: nowrap;
-  }
-  .btn-save-target:active { background: #0d47a1; }
   .btn-csv {
     flex: 1;
     background: #fff;
@@ -926,28 +926,28 @@
       <span>設定</span>
       <button class="modal-close" id="settingsCloseBtn">✕</button>
     </div>
-    <div class="settings-row">
-      <div class="settings-row-label">この月の目標補填時間（分）</div>
-      <div class="settings-row-content">
-        <input type="number" class="form-input form-input-sm" id="targetMinInput" min="0" max="9999" value="0">
-        <span style="font-size:13px;color:#888;">分</span>
-        <button class="btn-save-target" id="saveTargetBtn">保存</button>
-      </div>
-    </div>
-    <div class="settings-row">
-      <div class="settings-row-label">CSVエクスポート / インポート（この月）</div>
-      <div style="display:flex;gap:8px;margin-top:6px;">
-        <button class="btn-csv" id="csvExportBtn">CSVエクスポート</button>
-        <label class="btn-csv btn-csv-import" id="csvImportLabel">
-          CSVインポート
-          <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
-        </label>
-      </div>
-    </div>
+    <div class="settings-section-title">データ管理</div>
     <div class="settings-row">
       <div class="settings-row-label">スプレッドシートに送信（この月）</div>
       <button class="btn-send" id="csvSendBtn">スプレッドシートへ送信</button>
     </div>
+    <div class="settings-row">
+      <div class="settings-row-label">バックアップ保存（CSV）</div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn-csv" id="csvExportBtn">この月のデータを保存</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <div class="settings-row-label">バックアップ復元（CSV）</div>
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <label class="btn-csv btn-csv-import" id="csvImportLabel">
+          CSVファイルから復元
+          <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
+        </label>
+      </div>
+    </div>
+
+    <div class="settings-section-title">設定</div>
     <div class="settings-row">
       <div class="settings-row-label">シフト記号の管理</div>
       <div class="shift-code-list" id="shiftCodeList"></div>
@@ -1220,7 +1220,7 @@ function renderHeader() {
 
   // 累計補填（緑）
   const totalEl = document.getElementById('summaryTotal');
-  totalEl.textContent = (total > 0 ? '+' : '') + minToHM(total);
+  totalEl.textContent = minToHM(total);
   totalEl.className = 'summary-value';
   if (total > 0) totalEl.classList.add('positive');
 
@@ -1598,22 +1598,11 @@ function clearDay() {
 function openSettings() {
   const ym = currentYM();
   const monthData = getMonthData(appData, ym);
-  document.getElementById('targetMinInput').value = monthData.targetMinutes;
   renderShiftCodeList();
   document.getElementById('settingsOverlay').classList.add('open');
 }
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('open');
-}
-
-function saveTarget() {
-  const ym = currentYM();
-  const monthData = getMonthData(appData, ym);
-  monthData.targetMinutes = parseInt(document.getElementById('targetMinInput').value) || 0;
-  saveData(appData);
-  closeSettings();
-  render();
-  showToast('目標時間を保存しました');
 }
 
 function resetMonth() {
@@ -1657,13 +1646,33 @@ function csvExport() {
 
   const bom = '\uFEFF';
   const blob = new Blob([bom + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `shift_${ym}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('CSVをエクスポートしました');
+
+  // File System Access API 対応ブラウザ：保存完了後にトースト表示
+  if (window.showSaveFilePicker) {
+    (async () => {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: `shift_${ym}.csv`,
+          types: [{ description: 'CSV', accept: { 'text/csv': ['.csv'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        showToast('バックアップを保存しました');
+      } catch (e) {
+        // ユーザーがキャンセルした場合は何もしない
+      }
+    })();
+  } else {
+    // 非対応ブラウザ（iOS Safari等）：従来の方法
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shift_${ym}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('バックアップを保存しました');
+  }
 }
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxQpoyiVX8J3EhHgHSKme7nCoaiIItLfUOGLmnnK9EcybHNIM7t0cYMYsxQkabYu58/exec';
@@ -2061,13 +2070,69 @@ document.getElementById('batchOverlay').addEventListener('click', e => {
 });
 
 document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
-document.getElementById('saveTargetBtn').addEventListener('click', saveTarget);
 document.getElementById('csvExportBtn').addEventListener('click', csvExport);
 document.getElementById('csvSendBtn').addEventListener('click', csvSend);
 document.getElementById('csvImportInput').addEventListener('change', function(e) {
   if (e.target.files[0]) { csvImport(e.target.files[0]); e.target.value = ''; }
 });
 document.getElementById('resetMonthBtn').addEventListener('click', resetMonth);
+
+// ===== PWA（ホーム画面追加でアプリ化） =====
+(function registerPWA() {
+  // Web App Manifest をインライン生成
+  const manifest = {
+    name: '所定管理',
+    short_name: '所定管理',
+    description: 'シフト補填時間管理アプリ',
+    start_url: location.href,
+    display: 'standalone',
+    background_color: '#ffffff',
+    theme_color: '#ffffff',
+    icons: [
+      { src: 'HTMLicon.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+      { src: 'HTMLicon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+    ]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  const manifestURL = URL.createObjectURL(manifestBlob);
+  const link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = manifestURL;
+  document.head.appendChild(link);
+
+  // Service Worker をインライン生成（オフラインキャッシュ対応）
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      const CACHE_NAME = 'shotei-v1';
+      self.addEventListener('install', e => {
+        e.waitUntil(
+          caches.open(CACHE_NAME).then(cache => cache.addAll(['./', 'HTMLicon.png']))
+        );
+        self.skipWaiting();
+      });
+      self.addEventListener('activate', e => {
+        e.waitUntil(
+          caches.keys().then(keys => Promise.all(
+            keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+          ))
+        );
+        self.clients.claim();
+      });
+      self.addEventListener('fetch', e => {
+        e.respondWith(
+          caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+            return res;
+          }))
+        );
+      });
+    `;
+    const swBlob = new Blob([swCode], { type: 'application/javascript' });
+    const swURL = URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL).catch(() => {});
+  }
+})();
 
 // ===== 起動 =====
 initTimeSelects();
