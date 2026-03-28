@@ -425,6 +425,61 @@
     border-bottom: 2px solid #e0e0e0;
     margin-top: 4px;
   }
+  /* 履歴復元モーダル */
+  .history-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 300;
+    align-items: flex-end;
+  }
+  .history-overlay.open { display: flex; }
+  .history-sheet {
+    background: #fff;
+    width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .history-title {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px 0 12px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 10px 0;
+    text-align: left;
+    gap: 2px;
+  }
+  .history-item:active { background: #f0f7ff; }
+  .history-item-label {
+    font-size: 11px;
+    color: #888;
+  }
+  .history-item-timestamp {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1565c0;
+  }
+  .history-empty {
+    text-align: center;
+    color: #aaa;
+    padding: 32px 0;
+    font-size: 14px;
+  }
   .settings-section-title:first-child { margin-top: 0; padding-top: 0; }
   .settings-row {
     padding: 14px 0;
@@ -939,11 +994,12 @@
     </div>
     <div class="settings-row">
       <div class="settings-row-label">バックアップ復元（CSV）</div>
-      <div style="display:flex;gap:8px;margin-top:6px;">
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
         <label class="btn-csv btn-csv-import" id="csvImportLabel">
           CSVファイルから復元
           <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
         </label>
+        <button class="btn-csv" id="fetchHistoryBtn">送信履歴から復元</button>
       </div>
     </div>
 
@@ -984,6 +1040,17 @@
 
 <!-- トースト -->
 <div class="toast" id="toast"></div>
+
+<!-- 送信履歴から復元モーダル -->
+<div class="history-overlay" id="historyOverlay">
+  <div class="history-sheet">
+    <div class="history-title">
+      <span>送信履歴から復元</span>
+      <button class="modal-close" id="historyCloseBtn">✕</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+</div>
 
 <script>
 // ===== シフトコード定義（shift.xlsx の "shift codes" シートより） =====
@@ -1726,6 +1793,97 @@ function csvSend() {
   });
 }
 
+// ===== 送信履歴から復元 =====
+function fetchHistory() {
+  const btn = document.getElementById('fetchHistoryBtn');
+  btn.disabled = true;
+  btn.textContent = '読み込み中...';
+
+  fetch(GAS_URL)
+    .then(r => r.json())
+    .then(histories => {
+      if (!Array.isArray(histories) || histories.length === 0) {
+        showToast('送信履歴がありません');
+        return;
+      }
+      showHistoryModal(histories);
+    })
+    .catch(() => showToast('履歴の取得に失敗しました'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '送信履歴から復元';
+    });
+}
+
+function showHistoryModal(histories) {
+  const list = document.getElementById('historyList');
+  list.innerHTML = '';
+  if (histories.length === 0) {
+    list.innerHTML = '<div class="history-empty">送信履歴がありません</div>';
+  } else {
+    histories.forEach(h => {
+      const item = document.createElement('button');
+      item.className = 'history-item';
+      item.innerHTML = `
+        <span class="history-item-label">送信日時</span>
+        <span class="history-item-timestamp">${h.timestamp}</span>
+      `;
+      item.addEventListener('click', () => {
+        if (confirm(`「${h.timestamp}」のデータで復元しますか？\n現在のデータは上書きされます。`)) {
+          restoreFromHistory(h.data);
+        }
+      });
+      list.appendChild(item);
+    });
+  }
+  document.getElementById('historyOverlay').classList.add('open');
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyOverlay').classList.remove('open');
+}
+
+function restoreFromHistory(rows) {
+  // rows[0] はヘッダー行、rows[1]以降がデータ
+  const dataRows = rows.slice(1);
+  let ym = null;
+  let imported = 0;
+
+  for (const row of dataRows) {
+    const [ymd, symbol, isHol, afterType, bs, be, bb, as, ae, ab] = row.map(v => String(v ?? ''));
+    if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
+
+    if (!ym) ym = ymd.substring(0, 7);
+    const monthData = getMonthData(appData, ym);
+
+    if (!symbol && isHol === '0' && !bs && !be && !as && !ae) continue;
+
+    const entry = {};
+    if (symbol) entry.symbol = symbol;
+    if (isHol === '1') entry.isHoliday = true;
+    if (afterType && afterType !== 'normal') entry.afterType = afterType;
+    if (bs || be) entry.before = { start: bs, end: be, break: parseInt(bb) || 60 };
+    if (as || ae) entry.after = { start: as, end: ae, break: parseInt(ab) || 60 };
+
+    monthData.days[ymd] = entry;
+    imported++;
+  }
+
+  if (imported > 0) {
+    saveData(appData);
+    if (ym) {
+      const [iy, im] = ym.split('-').map(Number);
+      currentDate = new Date(iy, im - 1, 1);
+    }
+    render();
+    closeHistoryModal();
+    closeSettings();
+    showToast(`${imported}日分を復元しました`);
+  } else {
+    showToast('復元できるデータがありませんでした');
+  }
+}
+
 function csvImport(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -2068,6 +2226,11 @@ document.getElementById('settingsOverlay').addEventListener('click', e => {
 document.getElementById('batchOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('batchOverlay')) closeBatch();
 });
+document.getElementById('historyOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('historyOverlay')) closeHistoryModal();
+});
+document.getElementById('historyCloseBtn').addEventListener('click', closeHistoryModal);
+document.getElementById('fetchHistoryBtn').addEventListener('click', fetchHistory);
 
 document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
 document.getElementById('csvExportBtn').addEventListener('click', csvExport);
