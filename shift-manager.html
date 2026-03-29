@@ -983,23 +983,18 @@
     </div>
     <div class="settings-section-title">データ管理</div>
     <div class="settings-row">
-      <div class="settings-row-label">スプレッドシートに送信（この月）</div>
       <button class="btn-send" id="csvSendBtn">スプレッドシートへ送信</button>
     </div>
-    <div class="settings-row">
-      <div class="settings-row-label">バックアップ保存（CSV）</div>
-      <div style="display:flex;gap:8px;margin-top:6px;">
-        <button class="btn-csv" id="csvExportBtn">この月のデータを保存</button>
-      </div>
+    <div class="settings-row">      <!-- <div class="settings-row-label">送信履歴から復元</div> -->
+      <button class="btn-send" id="fetchHistoryBtn" style="background:#fff;color:#1565c0;border:1px solid #1565c0;">送信履歴から復元</button>
     </div>
     <div class="settings-row">
-      <div class="settings-row-label">バックアップ復元（CSV）</div>
-      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn-csv" id="csvExportBtn">CSVダウンロード</button>
         <label class="btn-csv btn-csv-import" id="csvImportLabel">
-          CSVファイルから復元
+          CSVアップロード
           <input type="file" accept=".csv" id="csvImportInput" style="display:none;">
         </label>
-        <button class="btn-csv" id="fetchHistoryBtn">送信履歴から復元</button>
       </div>
     </div>
 
@@ -1843,6 +1838,27 @@ function closeHistoryModal() {
   document.getElementById('historyOverlay').classList.remove('open');
 }
 
+// GASから返る値を文字列に変換（日付・時刻の型変換に対応）
+function gasToStr(v) {
+  if (v === null || v === undefined || v === '') return '';
+  // GASがDate→ISOに変換した日付文字列（UTC）をローカル日付に変換
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+    const d = new Date(v);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  // 時刻の小数値（例: 0.375 → "09:00"）
+  if (typeof v === 'number' && v > 0 && v < 1) {
+    const totalMin = Math.round(v * 24 * 60);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  return String(v);
+}
+
 function restoreFromHistory(rows) {
   // rows[0] はヘッダー行、rows[1]以降がデータ
   const dataRows = rows.slice(1);
@@ -1850,11 +1866,14 @@ function restoreFromHistory(rows) {
   let imported = 0;
 
   for (const row of dataRows) {
-    const [ymd, symbol, isHol, afterType, bs, be, bb, as, ae, ab] = row.map(v => String(v ?? ''));
+    const [ymdRaw, symbol, isHol, afterType, bs, be, bb, as, ae, ab] = row.map(gasToStr);
+    // GASがDateオブジェクトをISO文字列化した場合に先頭10文字でYYYY-MM-DDを取得
+    const ymd = ymdRaw.substring(0, 10);
     if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) continue;
 
-    if (!ym) ym = ymd.substring(0, 7);
-    const monthData = getMonthData(appData, ym);
+    const rowYm = ymd.substring(0, 7);
+    if (!ym) ym = rowYm;
+    const monthData = getMonthData(appData, rowYm);
 
     if (!symbol && isHol === '0' && !bs && !be && !as && !ae) continue;
 
